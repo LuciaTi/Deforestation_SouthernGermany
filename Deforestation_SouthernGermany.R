@@ -445,6 +445,9 @@ writeRaster(p193r27_2011_cdr_new_crop_illu_mask_NDVI, "results/p193r27_2011_cdr_
 p193r27_1988_cdr_new_crop_illu_mask_NDVI <- brick("results/p193r27_1988_cdr_new_crop_illu_mask_NDVI.grd")
 p193r27_2011_cdr_new_crop_illu_mask_NDVI <- brick("results/p193r27_2011_cdr_new_crop_illu_mask_NDVI.grd")
 
+p193r27_1988_cdr_NDVI <- raster("results/p193r27_1988_cdr_NDVI.grd")
+p193r27_2011_cdr_NDVI <- raster("results/p193r27_2011_cdr_NDVI.grd")
+
 
 
 
@@ -550,27 +553,32 @@ p193r27_2011_cdr_sclass6 <- superClass(img = p193r27_2011_cdr_new_crop_illu_mask
 ########## 4. Evaluate the quality of the Classifications
 
 # accuracy for 1988
-p193r27_1988_cdr_sclass1$validation$performance # Accuracy: 0.8149
+p193r27_1988_cdr_sclass1$validation$performance # Accuracy : 0.8162 ## rf without NDVI is best Model
 p193r27_1988_cdr_sclass1$modelFit
-p193r27_1988_cdr_sclass2$validation$performance # Accuracy : 0.8091
-p193r27_1988_cdr_sclass3$validation$performance # Accuracy : 0.59  
-p193r27_1988_cdr_sclass4$validation$performance ## Accuracy : 0.8212 ## svmRadial 
-p193r27_1988_cdr_sclass5$validation$performance # Accuracy : 0.7631
-p193r27_1988_cdr_sclass6$validation$performance # Accuracy : 0.8206
+p193r27_1988_cdr_sclass2$validation$performance # Accuracy : 0.8113
+p193r27_1988_cdr_sclass3$validation$performance # Accuracy : 0.6237  
+p193r27_1988_cdr_sclass4$validation$performance # Accuracy : 0.8043  
+p193r27_1988_cdr_sclass5$validation$performance # Accuracy : 0.7645
+p193r27_1988_cdr_sclass6$validation$performance # Accuracy : 0.8067
 
 # accuracy for 2011
-p193r27_2011_cdr_sclass1$validation$performance # Accuracy : 0.9061 
+p193r27_2011_cdr_sclass1$validation$performance # Accuracy : 0.8986 
 p193r27_2011_cdr_sclass1$modelFit
-p193r27_2011_cdr_sclass2$validation$performance # Accuracy : 0.9074
-p193r27_2011_cdr_sclass3$validation$performance # Accuracy : 0.6269 
-p193r27_2011_cdr_sclass4$validation$performance # Accuracy : 0.9162
-p193r27_2011_cdr_sclass5$validation$performance # Accuracy : 0.8333
-p193r27_2011_cdr_sclass6$validation$performance ## Accuracy : 0.9178 ## svmRadial mit NDVI
+p193r27_2011_cdr_sclass2$validation$performance # Accuracy : 0.8943
+p193r27_2011_cdr_sclass3$validation$performance # Accuracy : 0.6211 
+p193r27_2011_cdr_sclass4$validation$performance # Accuracy : 0.9155
+p193r27_2011_cdr_sclass5$validation$performance # Accuracy : 0.8355
+p193r27_2011_cdr_sclass6$validation$performance # Accuracy : 0.9163 ## svmRadial mit NDVI is best Model
 
 
 # save the map of the best classification
 writeRaster(p193r27_1988_cdr_sclass4$map, "results/p193r27_1988_cdr_sclass4$map.grd")
 writeRaster(p193r27_2011_cdr_sclass6$map, "results/p193r27_2011_cdr_sclass6$map.grd")
+
+
+## !! ## 
+# one the first run, 1988/sc_4 and 2011/sc_6 were the best Classifications.
+# one the second run, 1988/sc_1 and 2011/sc_6 were the best Classifications (with set.seed)
 
 
 
@@ -583,8 +591,8 @@ writeRaster(p193r27_2011_cdr_sclass6$map, "results/p193r27_2011_cdr_sclass6$map.
 cols <- c("1"="seagreen3", "2"="blue", "3"="darkred", "4"="khaki1")
 
 ### Plot 1988
-ggR(p193r27_1988_cdr_sclass4$map, forceCat = TRUE, geom_raster = TRUE) +
-  ggtitle(paste("Landscape 1988\nSupervised classification 2 - model: svmRadial")) +
+ggR(p193r27_1988_cdr_sclass1$map, forceCat = TRUE, geom_raster = TRUE) +
+  ggtitle(paste("Landscape 1988\nSupervised classification 2 - model: rf")) +
   theme(plot.title = element_text(size = 12, colour = "black", face="bold"), 
         legend.title= element_text(size=11, colour="black", face="bold")) +
   scale_fill_manual(values = cols, 
@@ -645,11 +653,11 @@ ggR(p193r27_2011_cdr_sclass6$map, forceCat = TRUE, geom_raster = TRUE) +
 
 ########## 1. Area and Percentage of Landcover-Types in 1988
 # count the pixels per class
-p193r27_1988_cdr_sclass4.freq <- freq(p193r27_1988_cdr_sclass4$map, useNA="no")
+p193r27_1988_cdr_sclass1.freq <- freq(p193r27_1988_cdr_sclass1$map, useNA="no")
 
 # transform the Pixel-counts to surface-area
 resLsat5_1988 <- res(p193r27_1988_cdr_new_crop_illu_mask) # query the spatial resolution of one pixel
-area_km2_1988 <- p193r27_1988_cdr_sclass4.freq[ , "count"] * prod(resLsat5_1988) * 1e-6 # calculate the surface per class with: number of counts * pixelsize (30^2) * 1e-06 (in kilometers)
+area_km2_1988 <- p193r27_1988_cdr_sclass1.freq[ , "count"] * prod(resLsat5_1988) * 1e-6 # calculate the surface per class with: number of counts * pixelsize (30^2) * 1e-06 (in kilometers)
 area_percent_1988 <- area_km2_1988/sum(area_km2_1988) # calculate also the %-Area per Lancover Type
 area_km2_1988_df <- data.frame(Year=c(rep(1988,4)),
                                ClassID = c(1,2,3,4), 
@@ -743,7 +751,7 @@ urban_prod_2011 <- p193r27_2011_cdr_NDVI[p193r27_2011_cdr_sclass6$map$id == 3, ]
 agriculture_prod_2011 <- p193r27_2011_cdr_NDVI[p193r27_2011_cdr_sclass6$map$id == 4, ]
 
 
-# plot the Productvity per class
+# plot the Productivity per class
 
 landcover_classes <- names(prod_1988_df)
 boxplot(prod_landcover_1988)
