@@ -34,9 +34,15 @@ library(rgdal)
 library(ggplot2)
 library(gridExtra)
 library(rgeos)
+library(ggpubr)
 
 
 ## 1) Reading in the Data, creating Marktoberdorf-buffer, cropping and first plotting ####
+
+
+########## 0. partly data from 1988 (needed to set projection of gps-data etc.)
+p193r27_1988_xml <- readMeta("raster/LT05_p193r27_1988_07_20/LT05_L1TP_193027_19880720_20170208_01_T1.xml")
+p193r27_1988_cdr <- stackMeta(p193r27_1988_xml, quantity=c("sre", "bt")) # --> no bt-bands, only sre-bands are loaded
 
 
 
@@ -117,6 +123,9 @@ ggRGB(p193r27_1988_cdr_crop,
              colour="red", 
              shape=3, size=3, stroke=1.5)
 
+# save the results
+writeRaster(p193r27_1988_cdr, "results/p193r27_1988_cdr.grd")
+wirteRaster(p193r27_1988_cdr_crop, "results/p193r27_1988_cdr_crop.grd")
 
 
 
@@ -159,7 +168,9 @@ ggRGB(p193r27_2011_cdr_crop,
              colour="red", 
              shape=3, size=3, stroke=1.5)
 
-
+# save the results
+writeRaster(p193r27_2011_cdr, "results/p193r27_2011_cdr.grd")
+writeRaster(p193r27_2011_cdr_crop, "results/p193r27_2011_cdr_crop.grd")
 
 
 
@@ -196,6 +207,7 @@ p193r27_1988_cdr_new_crop_mask <- mask(p193r27_1988_cdr_new_crop, buf_25)
 ggRGB(p193r27_1988_cdr_new_crop_mask, stretch="lin") +
   ggtitle("Cropped Scene from 1988\n(ONLY 25 km-buffer around Marktoberdorf)") +
   theme(plot.title=element_text(size=12, colour="black", face="bold"))
+
 
 # save the results
 writeRaster(p193r27_1988_cdr_new, "results/p193r27_1988_cdr_new.grd")
@@ -238,6 +250,7 @@ ggRGB(p193r27_2011_cdr_new_crop_mask, stretch="lin") +
   ggtitle("Cropped Scene from 2011\n(ONLY 25 km-buffer around Marktoberdorf)") +
   theme(plot.title=element_text(size=12, colour="black", face="bold"))
 
+
 # save the results
 writeRaster(p193r27_2011_cdr_new, "results/p193r27_2011_cdr_new.grd")
 writeRaster(p193r27_2011_cdr_new_crop, "results/p193r27_2011_cdr_new_crop.grd")
@@ -246,10 +259,11 @@ writeRaster(p193r27_2011_cdr_new_crop_mask, "results/p193r27_2011_cdr_new_crop_m
 
 
   
-## 3) Identify and Remove Cloud Pixels (no big cloud contained on images --> no extra processing done.) ####
+## 3) Identify and Remove Cloud Pixels (--> no extra processing done!) ####
 
 # process follows the device/description of package (https://cran.r-project.org/web/packages/RStoolbox/RStoolbox.pdf)
-# only the cropped part of each scene has been cloudMasked
+# only the cropped part of each scene should have been cloudMasked
+# no big cloud contained on images --> finally no extra processing done.
 
 ########## 1. Data from 1988
 cloudmask_1988_crop <- cloudMask(p193r27_1988_cdr_crop, blue=1, tir=6)
@@ -304,14 +318,18 @@ elev_germany_proj_crop_resampled <- resample(elev_germany_proj_crop, p193r27_198
 elev_germany_proj_crop_resampled
 p193r27_1988_cdr_new_crop # --> parameters are identical now
 
+# mask the new elevation data to shape of 25km-buffer
+elev_germany_proj_crop_resampled_mask <- mask(elev_germany_proj_crop_resampled, buf_25)
 
-# safe the created elevations data
+
+# save the created elevations data
 writeRaster(elev_germany, "results/elev_germany.grd")
 writeRaster(elev_germany_proj_crop_mask, "results/elev_germany_proj_crop_mask.grd")
 writeRaster(elev_germany_proj_crop_resampled, "results/elev_germany_proj_crop_resampled.grd")
+writeRaster(elev_germany_proj_crop_resampled_mask, "results/elev_germany_proj_crop_resampled_mask.grd")
 
 
-# load again the metadata for the tow scenes
+# load again the metadata for the two scenes
 p193r27_1988_xml <- readMeta("raster/LT05_p193r27_1988_07_20/LT05_L1TP_193027_19880720_20170208_01_T1.xml")
 p193r27_2011_xml <- readMeta("raster/LT05_p193r27_2011_07_04/LT05_L1TP_193027_20110704_20161008_01_T1.xml")
 
@@ -405,6 +423,7 @@ train_2011 <- readOGR(dsn="vector", layer="training_2011")
 validate_2011 <- readOGR(dsn="vector", layer="validation_2011")
 
 
+
 # make sure that the projections are identical
 identical(projection(p193r27_1988_cdr_new_crop_illu_mask), projection(train_1988))
 identical(projection(p193r27_1988_cdr_new_crop_illu_mask), projection(validate_1988))
@@ -416,17 +435,20 @@ identical(projection(p193r27_2011_cdr_new_crop_illu_mask), projection(validate_2
 
 
 ########## 2. Calucalte the NDVI per Scene and stack it to raster data
-# NDVI 1988
+### NDVI 1988
 p193r27_1988_cdr_NDVI <- spectralIndices(p193r27_1988_cdr_new_crop_illu_mask, 
                                          blue=1, red=2, green=3, nir=4, 
                                          indices="NDVI")
 # stack NDVI with raster-bands
 p193r27_1988_cdr_new_crop_illu_mask_NDVI <- stack(p193r27_1988_cdr_new_crop_illu_mask, p193r27_1988_cdr_NDVI)
+
 # safe the "pure" NDVI values for later use
 writeRaster(p193r27_1988_cdr_NDVI, "results/p193r27_1988_cdr_NDVI.grd")
 
 
-# NDVI 2011
+
+
+### NDVI 2011
 p193r27_2011_cdr_NDVI <- spectralIndices(p193r27_2011_cdr_new_crop_illu_mask, 
                                          blue=1, red=2, green=3, nir=4, 
                                          indices="NDVI")
@@ -453,6 +475,7 @@ p193r27_2011_cdr_NDVI <- raster("results/p193r27_2011_cdr_NDVI.grd")
 
 ########## 3. run the classifications
 # classifications 1988
+## !BEST! ##
 set.seed(6)
 p193r27_1988_cdr_sclass1 <- superClass(img = p193r27_1988_cdr_new_crop_illu_mask, 
                                        model = "rf", 
@@ -474,7 +497,6 @@ p193r27_1988_cdr_sclass3 <- superClass(img = p193r27_1988_cdr_NDVI,
                                        valData = validate_1988,
                                        responseCol = "id")
 
-## !! ##
 set.seed(6)
 p193r27_1988_cdr_sclass4 <- superClass(img = p193r27_1988_cdr_new_crop_illu_mask, 
                                        model = "svmRadial", 
@@ -538,7 +560,7 @@ p193r27_2011_cdr_sclass5 <- superClass(img = p193r27_2011_cdr_new_crop_illu_mask
                                        responseCol = "id")
 
 
-## !! ##
+## !BEST! ##
 set.seed(6)
 p193r27_2011_cdr_sclass6 <- superClass(img = p193r27_2011_cdr_new_crop_illu_mask_NDVI, 
                                        model = "svmRadial", 
@@ -553,7 +575,7 @@ p193r27_2011_cdr_sclass6 <- superClass(img = p193r27_2011_cdr_new_crop_illu_mask
 ########## 4. Evaluate the quality of the Classifications
 
 # accuracy for 1988
-p193r27_1988_cdr_sclass1$validation$performance # Accuracy : 0.8162 ## rf without NDVI is best Model
+p193r27_1988_cdr_sclass1$validation$performance # Accuracy : 0.8162 ## rf without NDVI is best Model!
 p193r27_1988_cdr_sclass1$modelFit
 p193r27_1988_cdr_sclass2$validation$performance # Accuracy : 0.8113
 p193r27_1988_cdr_sclass3$validation$performance # Accuracy : 0.6237  
@@ -568,7 +590,7 @@ p193r27_2011_cdr_sclass2$validation$performance # Accuracy : 0.8943
 p193r27_2011_cdr_sclass3$validation$performance # Accuracy : 0.6211 
 p193r27_2011_cdr_sclass4$validation$performance # Accuracy : 0.9155
 p193r27_2011_cdr_sclass5$validation$performance # Accuracy : 0.8355
-p193r27_2011_cdr_sclass6$validation$performance # Accuracy : 0.9163 ## svmRadial mit NDVI is best Model
+p193r27_2011_cdr_sclass6$validation$performance # Accuracy : 0.9163 ## svmRadial with NDVI is best Model
 
 
 # save the map of the best classification
@@ -576,9 +598,6 @@ writeRaster(p193r27_1988_cdr_sclass4$map, "results/p193r27_1988_cdr_sclass4$map.
 writeRaster(p193r27_2011_cdr_sclass6$map, "results/p193r27_2011_cdr_sclass6$map.grd")
 
 
-## !! ## 
-# one the first run, 1988/sc_4 and 2011/sc_6 were the best Classifications.
-# one the second run, 1988/sc_1 and 2011/sc_6 were the best Classifications (with set.seed)
 
 
 
@@ -615,7 +634,8 @@ gps_Rottach <- spTransform(gps_Rottach, CRS(projection(p193r27_1988_cdr)))
 gps_Rottach
 
 
-#Create a 5km-Buffer around Rottachsee
+
+#Create a 5km-Buffer around Rottachspeicher
 buf_5 <- gBuffer(gps_Rottach, width=5000, byid=TRUE) 
 
 # prepare the polygons for plotting
@@ -628,7 +648,18 @@ plot(buf_5)
 plot(gps_Rottach, add=TRUE)
 
 
-ggR(p193r27_2011_cdr_sclass6$map, forceCat = TRUE, geom_raster = TRUE) +
+# plot 1988 without and 2011 with the Rottachspeicher-Buffer
+
+g5a <- ggR(p193r27_1988_cdr_sclass1$map, forceCat = TRUE, geom_raster = TRUE) +
+  ggtitle(paste("Landscape 1988\nSupervised classification 2 - model: rf")) +
+  theme(plot.title = element_text(size = 12, colour = "black", face="bold"), 
+        legend.title= element_text(size=11, colour="black", face="bold")) +
+  scale_fill_manual(values = cols, 
+                    labels=c("Class1: Forest", "Class2: Water", "Class3: Urban/Streets", "Class4: Agriculture/Grassland"), 
+                    name = "Landcover\nClasses\n")
+
+
+g5b <- ggR(p193r27_2011_cdr_sclass6$map, forceCat = TRUE, geom_raster = TRUE) +
   ggtitle(paste("Landscape 2011\nSupervised classification 2 - model: svmRadial, with NDVI")) +
   theme(plot.title = element_text(size = 12, colour = "black", face="bold"), 
         legend.title= element_text(size=11, colour="black", face="bold")) +
@@ -644,11 +675,13 @@ ggR(p193r27_2011_cdr_sclass6$map, forceCat = TRUE, geom_raster = TRUE) +
                alpha=0.1)
 
 
+grid.arrange(g5a, g5b, ncol=2, nrow =1)
+ggarrange(g5a, g5b, ncol=2, nrow=1, common.legend = TRUE, legend="right")
 
 
 
 
-## 5) Comparison of Landcover ####
+## 6) Comparison of Landcover ####
 
 
 ########## 1. Area and Percentage of Landcover-Types in 1988
@@ -704,7 +737,7 @@ ggplot(data=area_km2_df_complete,
   #          colour="black") +
   geom_text(size = 6, hjust = 0.5, vjust = 1.6, position = "stack") +
   scale_fill_manual(values =cols_2) +
-  ggtitle("Area per Landcover Class [%]\n\n") +
+  ggtitle("Amount of Landcover Classes in 1988 and 2011\n\n") +
   xlab("\n\nYear") + 
   ylab("Amount per Landcover Class [%]\n\n") +
   theme(plot.title = element_text(size = 15, colour = "black", face="bold"), 
@@ -720,54 +753,211 @@ ggplot(data=area_km2_df_complete,
 
 
 
-## 6) Comparison of Productivity per Zone and Year ####
+## 7) Comparison of Productivity per Landcover Class and Year ####
 
 # load the NDVI-Values
 p193r27_1988_cdr_NDVI <- raster("results/p193r27_1988_cdr_NDVI.grd")
 p193r27_2011_cdr_NDVI <- raster("results/p193r27_2011_cdr_NDVI.grd")
 
 # group the single pixel- NDVI-values per class
-forest_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass4$map$id == 1,]
-water_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass4$map$id == 2,]
-urban_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass4$map$id == 3,]
-agriculture_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass4$map$id == 4,]
-prod_1988 <- rbind(forest_prod_1988, 
-                   water_prod_1988, 
-                   urban_prod_1988, 
-                   agriculture_prod_1988)
-landcover_1988 <- rbind(rep("Forest", length(forest_prod_1988)), 
-                        rep("Water", length(water_prod_1988)), 
-                        rep("Urban", length(urban_prod_1988)), 
-                        rep("Agriculture", length(agriculture_prod_1988)))
-
-prod_landcover_1988 <- data.frame(Year=rep("1988", length(prod_1988)), 
-                                  Landcover=landcover_1988, 
-                                  Productivity= prod_1988)
+forest_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass1$map$id == 1,]
+water_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass1$map$id == 2,]
+urban_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass1$map$id == 3,]
+agriculture_prod_1988 <- p193r27_1988_cdr_NDVI[p193r27_1988_cdr_sclass1$map$id == 4,]
+prod_1988 <- cbind(forest=forest_prod_1988, 
+                   water=water_prod_1988, 
+                   urban=urban_prod_1988, 
+                   agriculture=agriculture_prod_1988)
 
 
 forest_prod_2011 <- p193r27_2011_cdr_NDVI[p193r27_2011_cdr_sclass6$map$id == 1, ]
 water_prod_2011 <- p193r27_2011_cdr_NDVI[p193r27_2011_cdr_sclass6$map$id == 2, ]
 urban_prod_2011 <- p193r27_2011_cdr_NDVI[p193r27_2011_cdr_sclass6$map$id == 3, ]
 agriculture_prod_2011 <- p193r27_2011_cdr_NDVI[p193r27_2011_cdr_sclass6$map$id == 4, ]
+prod_2011 <- cbind(forest=forest_prod_2011, 
+                   water=water_prod_2011, 
+                   urban=urban_prod_2011, 
+                   agriculture=agriculture_prod_2011)
 
 
-# plot the Productivity per class
+# plot the Productivity per class and year
+par(mfrow=c(1,2), mar=c(6,5,4,2), lwd=1, oma=c(0,0,4,0))
+boxplot(prod_1988,
+        ylim=c(-1.2, 1.2),
+        ylab="", 
+        xlab="", 
+        names=c("Forest", "Water", "Urban", "Agriculture"), 
+        las=2, 
+        cex.axis=1.0,
+        col = c("seagreen3", "blue", "darkred", "khaki1"))
+mtext( "Landcover Classes",
+       side = 1,line = 5,cex = 1.1, las = 0, font = 2)
+mtext( "NDVI-Values",
+       side = 2,line = 3,cex = 1.1, las = 0, font = 2)
+mtext("Comparison of Productivity\n(1988)",
+      side = 3,line = 1, cex = 1.2, font = 2)
 
-landcover_classes <- names(prod_1988_df)
-boxplot(prod_landcover_1988)
-g1c <- ggplot(prod_1988_df, aes(x=names(prod_1988)))
-g1c
+
+boxplot(prod_2011,
+        ylim=c(-1.2, 1.2), 
+        ylab="", 
+        xlab="", 
+        names=c("Forest", "Water", "Urban", "Agriculture"), 
+        las=2, 
+        cex.axis=1.0,
+        col = c("seagreen3", "blue", "darkred", "khaki1"))
+mtext( "Landcover Classes",
+       side = 1,line = 5,cex = 1.1, las = 0, font = 2)
+mtext( "NDVI-Values",
+       side = 2,line = 3,cex = 1.1, las = 0, font = 2)
+mtext("Comparison of Productivity\n(2011)",
+      side = 3,line = 1, cex = 1.2, font = 2)
+mtext("Comparison between 1988 and 2011",
+      side = 3,line = 1, cex = 1.2, font = 2, outer=TRUE)
+
+
+# reset the plotting parameters to default
+dev.off()
 
 
 
 
-## 4) Defining elevation zones ####
+## 8) Defining elevation zones ####
+
+########## 1. Loading the Data and Plotting
+
+# load elevation and Raster-data
+elev_germany_proj_crop_resampled_mask <- raster("results/elev_germany_proj_crop_resampled_mask.grd")
+elev_germany_proj_crop_resampled_mask_df <- as.data.frame(elev_germany_proj_crop_resampled_mask)
+
+p193r27_1988_cdr_new_crop_illu_mask <- brick("results/p193r27_1988_cdr_new_crop_illu_mask.grd")
+p193r27_2011_cdr_new_crop_illu_mask <- brick("results/p193r27_2011_cdr_new_crop_illu_mask.grd")
 
 
-## 6) Comparison of Productivity per Zone ####
+# plot the elevation data as raster and as boxplot
+## raster
+ggR(elev_germany_proj_crop_resampled_mask, geom_raster = TRUE) +
+  ggtitle("Elevation Data - Raster Image") +
+  theme(plot.title = element_text(size = 13, colour = "black", face="bold"), 
+        legend.title=element_text(size = 11, colour = "black", face="bold")) +
+  scale_fill_gradientn(colours=terrain.colors(50), 
+                       name = "Elevation [m]\n")
+
+## boxplot   
+par(mar=c(3,6,4,3))
+boxplot(elev_germany_proj_crop_resampled_mask_df, 
+        main="", 
+        ylab="", 
+        las=2, 
+        cex.axes=1.1, 
+        cex.lab=1.2, 
+        col="azure2") 
+mtext( "Elevation Values - Data Range",
+       side = 3,line = 2,cex = 1.2, las = 0, font = 2)
+mtext( "Elevation [m]",
+       side = 2,line = 4,cex = 1.1, las = 0, font = 2)
+dev.off()
+
+# --> 2 big groups of elevation data can be distinguished: > 800m  and < 800m
+# --> <= 800m productivity will be compared with > 800m productivity
 
 
-## 7) Productivity-Change of deforested areas/ Agricultural Areas then and now ####
+
+
+######### 2. Defining the Elevation Classes <= 800m and > 800m
+
+low_elevation <- elev_germany_proj_crop_resampled_mask[elev_germany_proj_crop_resampled_mask <= 800]
+high_elevation <- elev_germany_proj_crop_resampled_mask[elev_germany_proj_crop_resampled_mask > 800]
+length(low_elevation)
+length(high_elevation)
+
+
+
+
+########## 3. define the productivity (agricultural area) per elevation class and year
+
+elevation_new <- elev_germany_proj_crop_resampled_mask # create a coppy of the elevation data
+query_low <- elevation_new <= 800
+query_high <- elevation_new > 800
+elevation_new[query_low] <- "low"
+elevation_new[query_high] <- "high"
+
+# group the data depending on landcover class (forest vs. agriculture) and elevation hight per year
+### 1988
+forest_prod_1988_low <- p193r27_1988_cdr_NDVI[(p193r27_1988_cdr_sclass1$map$id == 1) & (elev_germany_proj_crop_resampled_mask <= 800),]
+forest_prod_1988_high <- p193r27_1988_cdr_NDVI[(p193r27_1988_cdr_sclass1$map$id == 1) & (elev_germany_proj_crop_resampled_mask > 800),]
+agriculture_prod_1988_low <- p193r27_1988_cdr_NDVI[(p193r27_1988_cdr_sclass1$map$id == 4) & (elev_germany_proj_crop_resampled_mask <= 800),]
+agriculture_prod_1988_high <- p193r27_1988_cdr_NDVI[(p193r27_1988_cdr_sclass1$map$id == 4) & (elev_germany_proj_crop_resampled_mask > 800),]
+
+prod_1988_forest_low_high <- cbind(forest_low=forest_prod_1988_low,
+                                   forest_high=forest_prod_1988_high)
+prod_1988_agriculture_low_high <- cbind(agriculture_low=agriculture_prod_1988_low, 
+                                        agriculture_high=agriculture_prod_1988_high)
+
+
+### 2011
+forest_prod_2011_low <- p193r27_2011_cdr_NDVI[(p193r27_2011_cdr_sclass6$map$id == 1) & (elev_germany_proj_crop_resampled_mask <= 800),]
+forest_prod_2011_high <- p193r27_2011_cdr_NDVI[(p193r27_2011_cdr_sclass6$map$id == 1) & (elev_germany_proj_crop_resampled_mask > 800),]
+agriculture_prod_2011_low <- p193r27_2011_cdr_NDVI[(p193r27_2011_cdr_sclass6$map$id == 4) & (elev_germany_proj_crop_resampled_mask <= 800),]
+agriculture_prod_2011_high <- p193r27_2011_cdr_NDVI[(p193r27_2011_cdr_sclass6$map$id == 4) & (elev_germany_proj_crop_resampled_mask > 800),]
+
+prod_2011_forest_low_high <- cbind(forest_low=forest_prod_2011_low,
+                                   forest_high=forest_prod_2011_high)
+prod_2011_agriculture_low_high <- cbind(agriculture_low=agriculture_prod_2011_low, 
+                                        agriculture_high=agriculture_prod_2011_high)
+
+
+# plot everything
+par(mfrow=c(2,2), mar=c(2,2,2,2), oma=c(6,4,6,0))
+p1 <- boxplot(prod_1988_forest_low_high,
+        ylim=c(0, 1.2))
+lines(x=c(0,1), y=c(p1$stats[3,1], p1$stats[3,1]), 
+      col="red", 
+      ltp="dashed", 
+      lty=2)
+lines(x=c(0,2), y=c(p1$stats[3,1], p1$stats[3,2]), 
+      col="orange", 
+      ltp="dashed", 
+      lty=2)
+p2 <- boxplot(prod_1988_agriculture_low_high)
+lines(x=c(0,1), y=c(p2$stats[3,1], p2$stats[3,1]), 
+      col="red", 
+      ltp="dashed", 
+      lty=2)
+lines(x=c(0,2), y=c(p2$stats[3,1], p2$stats[3,2]), 
+      col="orange", 
+      ltp="dashed", 
+      lty=2)
+p3 <- boxplot(prod_2011_forest_low_high)
+lines(x=c(0,1), y=c(p3$stats[3,1], p3$stats[3,1]), 
+      col="red", 
+      ltp="dashed", 
+      lty=2)
+lines(x=c(0,2), y=c(p3$stats[3,1], p3$stats[3,2]), 
+      col="orange", 
+      ltp="dashed", 
+      lty=2)
+mtext( "Forest",
+       side=1,line=2.5,cex=1, las = 0, font = 2)
+p4 <- boxplot(prod_2011_agriculture_low_high)
+lines(x=c(0,1), y=c(p4$stats[3,1], p4$stats[3,1]), 
+      col="red", 
+      ltp="dashed", 
+      lty=2)
+lines(x=c(0,2), y=c(p4$stats[3,1], p4$stats[3,2]), 
+      col="orange", 
+      ltp="dashed", 
+      lty=2)
+mtext("Agriculture",
+      side=1,line=2.5, cex = 1, font = 2)
+mtext( "NDVI-Values",
+       side = 2,line = 2,cex = 1.1, las = 0, font = 2, outer =TRUE)
+mtext("Productivity of forest and agriculture\nin 1988 and 2011\n(per elevation class)",
+      side = 3,line = 0, cex = 1.2, font = 2, outer=TRUE)
+mtext( "Landcover Classes",
+       side=1,line=2.5,cex=1.1, las = 0, font = 2, outer=TRUE)
+
+
 
 
 ## 8) Productivity-Change of deforested areas of different elevation ####
